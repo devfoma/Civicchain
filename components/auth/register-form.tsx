@@ -54,19 +54,28 @@ export function RegisterForm() {
 
     setLoading(true)
 
-    // Simulate API call
-    setTimeout(() => {
-      // Store user data in localStorage for now (mock auth)
-      const userData = {
-        id: Date.now().toString(),
-        fullName: formData.fullName,
-        email: formData.email,
-        role: formData.role,
-      }
-      localStorage.setItem("civicchain_user", JSON.stringify(userData))
+    try {
+      // Call the real Register API (Database + DID generation)
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          role: formData.role,
+        }),
+      })
 
-      setLoading(false)
-      // Redirect based on role
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Registration failed")
+      }
+
+      // Success: Save user to local storage and redirect
+      localStorage.setItem("civicchain_user", JSON.stringify(data))
+
       if (formData.role === "citizen") {
         router.push("/citizen/dashboard")
       } else if (formData.role === "officer") {
@@ -74,7 +83,11 @@ export function RegisterForm() {
       } else if (formData.role === "auditor") {
         router.push("/auditor/dashboard")
       }
-    }, 1500)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

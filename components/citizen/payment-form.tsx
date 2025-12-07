@@ -64,26 +64,40 @@ export function PaymentForm() {
 
     try {
       const validatedData = paymentSchema.parse(formData)
-
       setIsLoading(true)
+
+      // Retrieve user from localStorage to link transaction to account
+      const userStr = localStorage.getItem("civicchain_user")
+      const user = userStr ? JSON.parse(userStr) : { id: "guest" }
 
       const response = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "payment",
+          amount: validatedData.amount, 
           description: validatedData.description,
-          amount: `₦ ${Number.parseFloat(validatedData.amount).toLocaleString()}`,
-          status: "completed",
+          paymentType: validatedData.paymentType,
+          userId: user.id, // Linked user ID
         }),
       })
 
       const transaction = await response.json()
 
-      addTransaction(transaction)
+      if (!response.ok) throw new Error(transaction.error || "Payment failed")
+
+      // Format for UI display
+      const formattedAmount = `₦ ${Number.parseFloat(validatedData.amount).toLocaleString()}`
+
+      addTransaction({
+        ...transaction,
+        amount: formattedAmount
+      })
+      
       setTransactionData({
         ...validatedData,
         ...transaction,
+        amount: formattedAmount
       })
 
       setFormData({
@@ -95,14 +109,18 @@ export function PaymentForm() {
       setOpen(false)
       setShowConfirmation(true)
     } catch (error: any) {
+      console.error("Payment error:", error)
       if (error.errors) {
+        // Zod validation errors
         const newErrors: any = {}
         error.errors.forEach((err: any) => {
           newErrors[err.path[0]] = err.message
         })
         setErrors(newErrors)
+      } else {
+        // API errors
+        setErrors({ description: error.message || "Transaction failed" })
       }
-      console.error("Payment error:", error)
     } finally {
       setIsLoading(false)
     }
